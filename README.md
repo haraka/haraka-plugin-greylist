@@ -1,8 +1,6 @@
 [![CI Test Status][ci-img]][ci-url]
 [![Code Climate][clim-img]][clim-url]
 
-[![NPM][npm-img]][npm-url]
-
 # haraka-plugin-greylist
 
 Basic greylisting plugin that follows common practices found on internets.
@@ -99,5 +97,3 @@ List of known dynamic hosts, to use the IP instead of the domain:
 [ci-url]: https://github.com/haraka/haraka-plugin-greylist/actions/workflows/ci.yml
 [clim-img]: https://codeclimate.com/github/haraka/haraka-plugin-greylist/badges/gpa.svg
 [clim-url]: https://codeclimate.com/github/haraka/haraka-plugin-greylist
-[npm-img]: https://nodei.co/npm/haraka-plugin-greylist.png
-[npm-url]: https://www.npmjs.com/package/haraka-plugin-greylist
