@@ -439,13 +439,13 @@ exports.craft_hostid = function (connection) {
     return chsit(null, 'invalid org domain in rDNS')
 
   // strip first label up until the tld boundary.
-  const decoupled = tlds.split_hostname(!remote.host, 3)
+  const decoupled = tlds.split_hostname(remote.host, 3)
   const vardom = decoupled[0] // "variable" portion of domain
   const dom = decoupled[1] // "static" portion of domain
 
   // we check for special cases where rdns looks custom/static, but really is dynamic
   const special_case_info = plugin.check_rdns_for_special_cases(
-    !remote.host,
+    remote.host,
     vardom,
   )
   if (special_case_info) return chsit(null, special_case_info.why)
