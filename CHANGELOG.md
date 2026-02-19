@@ -4,6 +4,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Unreleased
 
+- chore: add GHA permissions for NPM publish
+- dep(test-fixtures): allow newer versions
+
 ### [1.0.1] - 2025-01-30
 
 - doc(CONTRIBUTORS): added
