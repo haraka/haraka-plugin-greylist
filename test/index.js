@@ -56,9 +56,12 @@ describe('greylist', () => {
       this.connection.remote.host = 'mail.example.com'
       this.connection.remote.ip = '1.2.3.4'
       this.connection.results.add({ name: 'fcrdns' }, { pass: 'fcrdns' })
-      this.connection.results.add({ name: 'fcrdns' }, {
-        ptr_names: ['mail.example.com'],
-      })
+      this.connection.results.add(
+        { name: 'fcrdns' },
+        {
+          ptr_names: ['mail.example.com'],
+        },
+      )
 
       // This should not throw TypeError
       const result = this.plugin.craft_hostid(this.connection)

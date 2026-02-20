@@ -76,7 +76,7 @@ exports.load_config_lists = function () {
         }
 
         plugin.whitelist[type].push(addr)
-      } catch (e) {}
+      } catch (ignore) {}
     }
 
     plugin.logdebug(
@@ -114,12 +114,10 @@ exports.hook_mail = function (next, connection, params) {
 
   // whitelist checks
   if (this.ip_in_list(connection.remote.ip)) {
-    // check connecting IP
 
     this.loginfo(connection, 'Connecting IP was whitelisted via config')
     connection.transaction.results.add(this, { skip: 'config-whitelist(ip)' })
   } else if (this.addr_in_list('mail', mail_from.address().toLowerCase())) {
-    // check envelope (email & domain)
 
     this.loginfo(connection, 'Envelope was whitelisted via config')
     connection.transaction.results.add(this, {
@@ -150,10 +148,7 @@ exports.hook_rcpt_ok = function (next, connection, rcpt) {
     return next()
   }
 
-  const { transaction } = connection
-
-  const ctr = transaction.results
-  const { mail_from } = transaction
+  const ctr = connection.transaction.results
 
   // check rcpt in whitelist (email & domain)
   if (this.addr_in_list('rcpt', rcpt.address().toLowerCase())) {
@@ -180,9 +175,9 @@ exports.hook_rcpt_ok = function (next, connection, rcpt) {
       return next()
     }
 
-    return this.process_tuple(
+    this.process_tuple(
       connection,
-      mail_from.address(),
+      connection.transaction.mail_from.address(),
       rcpt.address(),
       (err2, white_promo_rec) => {
         if (err2) {
@@ -210,7 +205,7 @@ exports.hook_rcpt_ok = function (next, connection, rcpt) {
             fail: 'greylisted',
             stage: 'rcpt',
           })
-          return this.invoke_outcome_cb(next, false)
+          this.invoke_outcome_cb(next, false)
         } else {
           this.loginfo(connection, 'host has been promoted to WHITE zone')
           ctr.add(this, {
@@ -221,7 +216,7 @@ exports.hook_rcpt_ok = function (next, connection, rcpt) {
           ctr.add(this, {
             pass: 'whitelisted',
           })
-          return this.invoke_outcome_cb(next, true)
+          this.invoke_outcome_cb(next, true)
         }
       },
     )
@@ -235,7 +230,7 @@ exports.process_tuple = function (connection, sender, rcpt, cb) {
   const key = this.craft_grey_key(connection, sender, rcpt)
   if (!key) return
 
-  return this.db_lookup(key, (err, record) => {
+  this.db_lookup(key, (err, record) => {
     if (err) {
       if (err instanceof Error && err.what == 'db_error')
         this.logwarn(connection, `got err from DB: ${util.inspect(err)}`)
@@ -255,11 +250,11 @@ exports.process_tuple = function (connection, sender, rcpt, cb) {
       return this.promote_to_white(connection, record, cb)
     }
 
-    return this.update_grey(key, !record, (err2, created_record) => {
+    this.update_grey(key, !record, (err2, created_record) => {
       const err3 = new Error('in black zone')
       err3.record = created_record || record
       err3.notanerror = true
-      return cb(err3, null)
+      cb(err3, null)
     })
   })
 }
@@ -268,7 +263,7 @@ exports.process_tuple = function (connection, sender, rcpt, cb) {
 exports.check_and_update_white = function (connection, cb) {
   const key = this.craft_white_key(connection)
 
-  return this.db_lookup(key, (err, record) => {
+  this.db_lookup(key, (err, record) => {
     if (err) {
       this.logwarn(connection, `got err from DB: ${util.inspect(err)}`)
       throw err
@@ -283,7 +278,7 @@ exports.check_and_update_white = function (connection, cb) {
       return this.update_white_record(key, record, cb)
     }
 
-    return cb(null, false)
+    cb(null, false)
   })
 }
 
@@ -293,18 +288,17 @@ exports.invoke_outcome_cb = function (next, is_whitelisted) {
 
   const text = this.cfg.main.text || ''
 
-  return next(DENYSOFT, DSN.sec_unauthorized(text, '451'))
+  next(DENYSOFT, DSN.sec_unauthorized(text, '451'))
 }
 
 // Should we skip greylisting invokation altogether?
 exports.should_skip_check = function (connection) {
-  const { transaction, relaying, remote } = connection ?? {}
 
-  if (!transaction) return true
+  if (!connection.transaction) return true
 
-  const ctr = transaction.results
+  const ctr = connection.transaction.results
 
-  if (relaying) {
+  if (connection.relaying) {
     this.logdebug(connection, 'skipping GL for relaying host')
     ctr.add(this, {
       skip: 'relaying',
@@ -312,7 +306,7 @@ exports.should_skip_check = function (connection) {
     return true
   }
 
-  if (remote?.is_private) {
+  if (connection.remote?.is_private) {
     connection.logdebug(this, `skipping private IP: ${connection.remote.ip}`)
     ctr.add(this, {
       skip: 'private-ip',
@@ -365,7 +359,7 @@ exports.process_skip_rules = function (connection) {
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-// Build greylist DB key (originally, a "tuple") off supplied params.
+// Build greylist DB key (originally, a "tuple") of supplied params.
 // When _to_ is false, we craft +sender+ key
 // When _to_ is String, we craft +rcpt+ key
 exports.craft_grey_key = function (connection, from, to) {
@@ -481,7 +475,7 @@ exports.retrieve_grey = function (rcpt_key, sender_key, cb) {
       err.what = 'db_error'
       throw err
     }
-    return cb(err, result)
+    cb(err, result)
   })
 }
 
@@ -538,7 +532,7 @@ exports.promote_to_white = function (connection, grey_rec, cb) {
   const white_key = this.craft_white_key(connection)
   if (!white_key) return
 
-  return this.db.hmset(white_key, white_rec, (err, result) => {
+  this.db.hmset(white_key, white_rec, (err) => {
     if (err) {
       this.lognotice(`DB error: ${util.inspect(err)}`)
       err.what = 'db_error'
@@ -548,7 +542,7 @@ exports.promote_to_white = function (connection, grey_rec, cb) {
       if (err2) {
         this.lognotice(`DB error: ${util.inspect(err2)}`)
       }
-      return cb(err2, result2)
+      cb(err2, result2)
     })
   })
 }
@@ -565,41 +559,33 @@ exports.update_white_record = function (key, record, cb) {
   })
   multi.expire(key, record.lifetime)
 
-  return multi.exec((err2, record2) => {
+  multi.exec((err2, record2) => {
     if (err2) {
       this.lognotice(`DB error: ${util.inspect(err2)}`)
       err2.what = 'db_error'
       throw err2
     }
-    return cb(null, record2)
+    cb(null, record2)
   })
 }
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 exports.db_lookup = function (key, cb) {
+  const numVals = [ 'created', 'updated', 'lifetime', 'tried', 'first_connect', 'whitelisted', 'tried_when_greylisted' ]
   this.db.hgetall(key, (err, result) => {
     if (err) {
       this.lognotice(`DB error: ${util.inspect(err)}`, key)
     }
     if (result && typeof result === 'object') {
       // groom known-to-be numeric values
-      [
-        'created',
-        'updated',
-        'lifetime',
-        'tried',
-        'first_connect',
-        'whitelisted',
-        'tried_when_greylisted',
-      ].forEach((kk) => {
-        const val = result[kk]
-        if (val !== undefined) {
-          result[kk] = Number(val)
+      for (const kk of numVals) {
+        if (result[kk] !== undefined) {
+          result[kk] = Number(result[kk])
         }
-      })
+      }
     }
-    return cb(null, result)
+    cb(null, result)
   })
 }
 
@@ -617,7 +603,7 @@ exports.addr_in_list = function (type, address) {
   try {
     const addr = new Address(address)
     return !!this.whitelist[type][addr.host]
-  } catch (err) {
+  } catch (ignore) {
     return false
   }
 }
@@ -632,7 +618,7 @@ exports.ip_in_list = function (ip) {
       if (ipobj.match(element)) {
         return true
       }
-    } catch (e) {}
+    } catch (ignore) {}
   }
 
   return false
