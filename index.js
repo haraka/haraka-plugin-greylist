@@ -41,30 +41,28 @@ exports.load_config = function () {
 
 // Load various configuration lists
 exports.load_config_lists = function () {
-  const plugin = this
+  this.whitelist = {}
+  this.list = {}
 
-  plugin.whitelist = {}
-  plugin.list = {}
+  const load_list = (type, file_name) => {
+    this.whitelist[type] = {}
 
-  function load_list(type, file_name) {
-    plugin.whitelist[type] = {}
-
-    const list = Object.keys(plugin.cfg[file_name])
+    const list = Object.keys(this.cfg[file_name])
 
     // toLower when loading spends a fraction of a second at load time
     // to save millions of seconds during run time.
     for (const element of list) {
-      plugin.whitelist[type][element.toLowerCase()] = true
+      this.whitelist[type][element.toLowerCase()] = true
     }
-    plugin.logdebug(
+    this.logdebug(
       `whitelist {${type}} loaded from ${file_name} with ${list.length} entries`,
     )
   }
 
-  function load_ip_list(type, file_name) {
-    plugin.whitelist[type] = []
+  const load_ip_list = (type, file_name) => {
+    this.whitelist[type] = []
 
-    const list = Object.keys(plugin.cfg[file_name])
+    const list = Object.keys(this.cfg[file_name])
 
     for (const element of list) {
       try {
@@ -75,20 +73,20 @@ exports.load_config_lists = function () {
           addr = ipaddr.parseCIDR(`${addr}${net.isIPv6(addr) ? '/128' : '/32'}`)
         }
 
-        plugin.whitelist[type].push(addr)
-      } catch (e) {}
+        this.whitelist[type].push(addr)
+      } catch (ignore) {}
     }
 
-    plugin.logdebug(
-      `whitelist {${type}} loaded from ${file_name} with ${plugin.whitelist[type].length} entries`,
+    this.logdebug(
+      `whitelist {${type}} loaded from ${file_name} with ${this.whitelist[type].length} entries`,
     )
   }
 
-  function load_config_list(type, file_name) {
-    plugin.list[type] = Object.keys(plugin.cfg[file_name])
+  const load_config_list = (type, file_name) => {
+    this.list[type] = Object.keys(this.cfg[file_name])
 
-    plugin.logdebug(
-      `list {${type}} loaded from ${file_name} with ${plugin.list[type].length} entries`,
+    this.logdebug(
+      `list {${type}} loaded from ${file_name} with ${this.list[type].length} entries`,
     )
   }
 
@@ -114,13 +112,9 @@ exports.hook_mail = function (next, connection, params) {
 
   // whitelist checks
   if (this.ip_in_list(connection.remote.ip)) {
-    // check connecting IP
-
     this.loginfo(connection, 'Connecting IP was whitelisted via config')
     connection.transaction.results.add(this, { skip: 'config-whitelist(ip)' })
   } else if (this.addr_in_list('mail', mail_from.address().toLowerCase())) {
-    // check envelope (email & domain)
-
     this.loginfo(connection, 'Envelope was whitelisted via config')
     connection.transaction.results.add(this, {
       skip: 'config-whitelist(envelope)',
@@ -143,17 +137,14 @@ exports.hook_mail = function (next, connection, params) {
 }
 
 //
-exports.hook_rcpt_ok = function (next, connection, rcpt) {
+exports.hook_rcpt_ok = async function (next, connection, rcpt) {
   if (this.should_skip_check(connection)) return next()
   if (this.was_whitelisted_in_session(connection)) {
     this.logdebug(connection, 'host already whitelisted in this session')
     return next()
   }
 
-  const { transaction } = connection
-
-  const ctr = transaction.results
-  const { mail_from } = transaction
+  const ctr = connection.transaction.results
 
   // check rcpt in whitelist (email & domain)
   if (this.addr_in_list('rcpt', rcpt.address().toLowerCase())) {
@@ -162,149 +153,134 @@ exports.hook_rcpt_ok = function (next, connection, rcpt) {
     return next()
   }
 
-  this.check_and_update_white(connection, (err, white_rec) => {
-    if (err) {
-      this.logerror(connection, `Got error: ${util.inspect(err)}`)
-      return next(
-        DENYSOFT,
-        DSN.sec_unspecified(
-          'Backend failure. Please, retry later or contact our support.',
-        ),
-      )
-    }
+  try {
+    const white_rec = await this.check_and_update_white(connection)
+
     if (white_rec) {
       this.logdebug(connection, 'host in WHITE zone')
       ctr.add(this, { pass: 'whitelisted' })
       ctr.push(this, { stats: { rcpt: white_rec }, stage: 'rcpt' })
-
       return next()
     }
 
-    return this.process_tuple(
-      connection,
-      mail_from.address(),
-      rcpt.address(),
-      (err2, white_promo_rec) => {
-        if (err2) {
-          if (err2 instanceof Error && err2.notanerror) {
-            this.logdebug(connection, 'host in GREY zone')
+    try {
+      const white_promo_rec = await this.process_tuple(
+        connection,
+        connection.transaction.mail_from.address(),
+        rcpt.address(),
+      )
 
-            ctr.add(this, {
-              fail: 'greylisted',
-            })
-            ctr.push(this, {
-              stats: {
-                rcpt: err2.record,
-              },
-              stage: 'rcpt',
-            })
+      if (!white_promo_rec) {
+        ctr.add(this, {
+          fail: 'greylisted',
+          stage: 'rcpt',
+        })
+        this.invoke_outcome_cb(next, false)
+      } else {
+        this.loginfo(connection, 'host has been promoted to WHITE zone')
+        ctr.add(this, {
+          pass: 'whitelisted',
+          stats: white_promo_rec,
+          stage: 'rcpt',
+        })
+        ctr.add(this, {
+          pass: 'whitelisted',
+        })
+        this.invoke_outcome_cb(next, true)
+      }
+    } catch (err2) {
+      if (err2 instanceof Error && err2.notanerror) {
+        this.logdebug(connection, 'host in GREY zone')
 
-            return this.invoke_outcome_cb(next, false)
-          }
+        ctr.add(this, {
+          fail: 'greylisted',
+        })
+        ctr.push(this, {
+          stats: {
+            rcpt: err2.record,
+          },
+          stage: 'rcpt',
+        })
 
-          throw err2
-        }
+        return this.invoke_outcome_cb(next, false)
+      }
 
-        if (!white_promo_rec) {
-          ctr.add(this, {
-            fail: 'greylisted',
-            stage: 'rcpt',
-          })
-          return this.invoke_outcome_cb(next, false)
-        } else {
-          this.loginfo(connection, 'host has been promoted to WHITE zone')
-          ctr.add(this, {
-            pass: 'whitelisted',
-            stats: white_promo_rec,
-            stage: 'rcpt',
-          })
-          ctr.add(this, {
-            pass: 'whitelisted',
-          })
-          return this.invoke_outcome_cb(next, true)
-        }
-      },
+      throw err2
+    }
+  } catch (err) {
+    this.logerror(connection, `Got error: ${util.inspect(err)}`)
+    return next(
+      DENYSOFT,
+      DSN.sec_unspecified(
+        'Backend failure. Please, retry later or contact our support.',
+      ),
     )
-  })
+  }
 }
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 // Main GL engine that accepts tuple and returns matched record or a rejection.
-exports.process_tuple = function (connection, sender, rcpt, cb) {
+exports.process_tuple = async function (connection, sender, rcpt) {
   const key = this.craft_grey_key(connection, sender, rcpt)
   if (!key) return
 
-  return this.db_lookup(key, (err, record) => {
-    if (err) {
-      if (err instanceof Error && err.what == 'db_error')
-        this.logwarn(connection, `got err from DB: ${util.inspect(err)}`)
-      throw err
-    }
-    this.logdebug(connection, `got record: ${util.inspect(record)}`)
+  const record = await this.db_lookup(key)
 
-    // { created: TS, updated: TS, lifetime: TTL, tried: Integer }
-    const now = Date.now() / 1000
+  this.logdebug(connection, `got record: ${util.inspect(record)}`)
 
-    if (
-      record &&
-      record.created + this.cfg.period.black < now &&
-      record.created + record.lifetime >= now
-    ) {
-      // Host passed greylisting
-      return this.promote_to_white(connection, record, cb)
-    }
+  // { created: TS, updated: TS, lifetime: TTL, tried: Integer }
+  const now = Date.now() / 1000
 
-    return this.update_grey(key, !record, (err2, created_record) => {
-      const err3 = new Error('in black zone')
-      err3.record = created_record || record
-      err3.notanerror = true
-      return cb(err3, null)
-    })
-  })
+  if (
+    record &&
+    record.created + this.cfg.period.black < now &&
+    record.created + record.lifetime >= now
+  ) {
+    // Host passed greylisting
+    return await this.promote_to_white(connection, record)
+  }
+
+  const created_record = await this.update_grey(key, !record)
+  const err = new Error('in black zone')
+  err.record = created_record || record
+  err.notanerror = true
+  throw err
 }
 
 // Checks if host is _white_. Updates stats if so.
-exports.check_and_update_white = function (connection, cb) {
+exports.check_and_update_white = async function (connection) {
   const key = this.craft_white_key(connection)
 
-  return this.db_lookup(key, (err, record) => {
-    if (err) {
-      this.logwarn(connection, `got err from DB: ${util.inspect(err)}`)
-      throw err
-    }
-    if (record) {
-      if (record.updated + record.lifetime - 2 < Date.now() / 1000) {
-        // race "prevention".
-        this.logerror(connection, 'Mischief! Race condition triggered.')
-        return cb(new Error('drunkard'))
-      }
+  const record = await this.db_lookup(key)
 
-      return this.update_white_record(key, record, cb)
+  if (record) {
+    if (record.updated + record.lifetime - 2 < Date.now() / 1000) {
+      // race "prevention".
+      this.logerror(connection, 'Mischief! Race condition triggered.')
+      throw new Error('drunkard')
     }
 
-    return cb(null, false)
-  })
+    return await this.update_white_record(key, record)
+  }
+
+  return false
 }
 
 // invokes next() depending on outcome param
 exports.invoke_outcome_cb = function (next, is_whitelisted) {
   if (is_whitelisted) return next()
 
-  const text = this.cfg.main.text || ''
-
-  return next(DENYSOFT, DSN.sec_unauthorized(text, '451'))
+  next(DENYSOFT, DSN.sec_unauthorized(this.cfg.main.text || '', '451'))
 }
 
 // Should we skip greylisting invokation altogether?
 exports.should_skip_check = function (connection) {
-  const { transaction, relaying, remote } = connection ?? {}
+  if (!connection.transaction) return true
 
-  if (!transaction) return true
+  const ctr = connection.transaction.results
 
-  const ctr = transaction.results
-
-  if (relaying) {
+  if (connection.relaying) {
     this.logdebug(connection, 'skipping GL for relaying host')
     ctr.add(this, {
       skip: 'relaying',
@@ -312,7 +288,7 @@ exports.should_skip_check = function (connection) {
     return true
   }
 
-  if (remote?.is_private) {
+  if (connection.remote?.is_private) {
     connection.logdebug(this, `skipping private IP: ${connection.remote.ip}`)
     ctr.add(this, {
       skip: 'private-ip',
@@ -365,7 +341,7 @@ exports.process_skip_rules = function (connection) {
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-// Build greylist DB key (originally, a "tuple") off supplied params.
+// Build greylist DB key (originally, a "tuple") of supplied params.
 // When _to_ is false, we craft +sender+ key
 // When _to_ is String, we craft +rcpt+ key
 exports.craft_grey_key = function (connection, from, to) {
@@ -386,7 +362,6 @@ exports.craft_white_key = function (connection) {
 
 // Return so-called +hostid+.
 exports.craft_hostid = function (connection) {
-  const plugin = this
   const { transaction, remote } = connection ?? {}
   if (!transaction || !remote) return null
 
@@ -394,11 +369,11 @@ exports.craft_hostid = function (connection) {
     return transaction.notes.greylist.hostid // "caching"
   }
 
-  function chsit(value, reason) {
+  const chsit = (value, reason) => {
     // cache the return value
-    if (!value) plugin.logdebug(connection, `hostid set to IP: ${reason}`)
+    if (!value) this.logdebug(connection, `hostid set to IP: ${reason}`)
 
-    transaction.results.add(plugin, {
+    transaction.results.add(this, {
       hostid_type: value ? 'domain' : 'ip',
       rdns: value || remote.ip,
       msg: reason,
@@ -411,14 +386,14 @@ exports.craft_hostid = function (connection) {
   }
 
   // no rDNS . FIXME: use fcrdns results
-  if (!remote.host || ['Unknown' | 'DNSERROR'].includes(remote.host))
+  if (!remote.host || ['Unknown', 'DNSERROR'].includes(remote.host))
     return chsit(null, 'no rDNS info for this host')
 
   remote.host = remote.host.replace(/\.$/, '') // strip ending dot, just in case
 
   const fcrdns = connection.results.get('fcrdns')
   if (!fcrdns) {
-    plugin.logwarn(connection, 'No FcrDNS plugin results, fix this.')
+    this.logwarn(connection, 'No FcrDNS plugin results, fix this.')
     return chsit(null, 'no FcrDNS plugin results')
   }
 
@@ -439,15 +414,12 @@ exports.craft_hostid = function (connection) {
     return chsit(null, 'invalid org domain in rDNS')
 
   // strip first label up until the tld boundary.
-  const decoupled = tlds.split_hostname(!remote.host, 3)
+  const decoupled = tlds.split_hostname(remote.host, 3)
   const vardom = decoupled[0] // "variable" portion of domain
   const dom = decoupled[1] // "static" portion of domain
 
   // we check for special cases where rdns looks custom/static, but really is dynamic
-  const special_case_info = plugin.check_rdns_for_special_cases(
-    !remote.host,
-    vardom,
-  )
+  const special_case_info = this.check_rdns_for_special_cases(remote.host)
   if (special_case_info) return chsit(null, special_case_info.why)
 
   let stripped_dom = dom
@@ -469,24 +441,24 @@ exports.craft_hostid = function (connection) {
 
 // Retrieve _grey_ record
 // not implemented
-exports.retrieve_grey = function (rcpt_key, sender_key, cb) {
+exports.retrieve_grey = async function (rcpt_key, sender_key) {
   const multi = this.db.multi()
 
   multi.hgetall(rcpt_key)
   multi.hgetall(sender_key)
 
-  multi.exec((err, result) => {
-    if (err) {
-      this.lognotice(`DB error: ${util.inspect(err)}`)
-      err.what = 'db_error'
-      throw err
-    }
-    return cb(err, result)
-  })
+  try {
+    const result = await multi.exec()
+    return result
+  } catch (err) {
+    this.lognotice(`DB error: ${util.inspect(err)}`)
+    err.what = 'db_error'
+    throw err
+  }
 }
 
 // Update or create _grey_ record
-exports.update_grey = function (key, create, cb) {
+exports.update_grey = async function (key, create) {
   const multi = this.db.multi()
 
   const ts_now = Math.round(Date.now() / 1000)
@@ -510,18 +482,18 @@ exports.update_grey = function (key, create, cb) {
     })
   }
 
-  multi.exec((err, records) => {
-    if (err) {
-      this.lognotice(`DB error: ${util.inspect(err)}`)
-      err.what = 'db_error'
-      throw err
-    }
-    return cb(null, create ? new_record : false)
-  })
+  try {
+    await multi.exec()
+    return create ? new_record : false
+  } catch (err) {
+    this.lognotice(`DB error: ${util.inspect(err)}`)
+    err.what = 'db_error'
+    throw err
+  }
 }
 
 // Promote _grey_ record to _white_.
-exports.promote_to_white = function (connection, grey_rec, cb) {
+exports.promote_to_white = async function (connection, grey_rec) {
   const ts_now = Math.round(Date.now() / 1000)
   const white_ttl = this.cfg.period.white
 
@@ -538,23 +510,19 @@ exports.promote_to_white = function (connection, grey_rec, cb) {
   const white_key = this.craft_white_key(connection)
   if (!white_key) return
 
-  return this.db.hmset(white_key, white_rec, (err, result) => {
-    if (err) {
-      this.lognotice(`DB error: ${util.inspect(err)}`)
-      err.what = 'db_error'
-      throw err
-    }
-    this.db.expire(white_key, white_ttl, (err2, result2) => {
-      if (err2) {
-        this.lognotice(`DB error: ${util.inspect(err2)}`)
-      }
-      return cb(err2, result2)
-    })
-  })
+  try {
+    await this.db.hmset(white_key, white_rec)
+    const result = await this.db.expire(white_key, white_ttl)
+    return result
+  } catch (err) {
+    this.lognotice(`DB error: ${util.inspect(err)}`)
+    err.what = 'db_error'
+    throw err
+  }
 }
 
 // Update _white_ record
-exports.update_white_record = function (key, record, cb) {
+exports.update_white_record = async function (key, record) {
   const multi = this.db.multi()
   const ts_now = Math.round(Date.now() / 1000)
 
@@ -565,42 +533,45 @@ exports.update_white_record = function (key, record, cb) {
   })
   multi.expire(key, record.lifetime)
 
-  return multi.exec((err2, record2) => {
-    if (err2) {
-      this.lognotice(`DB error: ${util.inspect(err2)}`)
-      err2.what = 'db_error'
-      throw err2
-    }
-    return cb(null, record2)
-  })
+  try {
+    const result = await multi.exec()
+    return result
+  } catch (err) {
+    this.lognotice(`DB error: ${util.inspect(err)}`)
+    err.what = 'db_error'
+    throw err
+  }
 }
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-exports.db_lookup = function (key, cb) {
-  this.db.hgetall(key, (err, result) => {
-    if (err) {
-      this.lognotice(`DB error: ${util.inspect(err)}`, key)
-    }
+exports.db_lookup = async function (key) {
+  const numVals = [
+    'created',
+    'updated',
+    'lifetime',
+    'tried',
+    'first_connect',
+    'whitelisted',
+    'tried_when_greylisted',
+  ]
+
+  try {
+    const result = await this.db.hgetall(key)
+
     if (result && typeof result === 'object') {
       // groom known-to-be numeric values
-      [
-        'created',
-        'updated',
-        'lifetime',
-        'tried',
-        'first_connect',
-        'whitelisted',
-        'tried_when_greylisted',
-      ].forEach((kk) => {
-        const val = result[kk]
-        if (val !== undefined) {
-          result[kk] = Number(val)
+      for (const kk of numVals) {
+        if (result[kk] !== undefined) {
+          result[kk] = Number(result[kk])
         }
-      })
+      }
     }
-    return cb(null, result)
-  })
+    return result
+  } catch (err) {
+    this.lognotice(`DB error: ${util.inspect(err)}`, key)
+    throw err
+  }
 }
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -617,7 +588,7 @@ exports.addr_in_list = function (type, address) {
   try {
     const addr = new Address(address)
     return !!this.whitelist[type][addr.host]
-  } catch (err) {
+  } catch (ignore) {
     return false
   }
 }
@@ -632,7 +603,7 @@ exports.ip_in_list = function (ip) {
       if (ipobj.match(element)) {
         return true
       }
-    } catch (e) {}
+    } catch (ignore) {}
   }
 
   return false
@@ -657,7 +628,7 @@ exports.domain_in_list = function (list_name, domain) {
 
 // Check for special rDNS cases
 // @return {type: 'dynamic'} if rnds is dynamic (hostid should be IP)
-exports.check_rdns_for_special_cases = function (domain, label) {
+exports.check_rdns_for_special_cases = function (domain) {
   // ptr for these is in fact dynamic
   if (this.domain_in_list('dyndom', domain))
     return {

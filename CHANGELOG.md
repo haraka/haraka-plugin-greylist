@@ -4,6 +4,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Unreleased
 
+### [1.1.0] - 2026-02-20
+
+- deps: bump all versions to latest
+- chore: refactor with es6 features
+- remove void returns
+- Fix TypeError by removing negation operator from remote.host usage
 - chore: add GHA permissions for NPM publish
 - dep(test-fixtures): allow newer versions
 
@@ -18,5 +24,4 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 - initial NPM release
 
-[1.0.0]: https://github.com/haraka/haraka-plugin-template/releases/tag/v1.0.0
 [1.0.1]: https://github.com/haraka/haraka-plugin-greylist/releases/tag/v1.0.1

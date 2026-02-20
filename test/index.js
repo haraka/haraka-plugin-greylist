@@ -2,7 +2,7 @@
 const assert = require('node:assert')
 const { beforeEach, describe, it } = require('node:test')
 
-const path = require('path')
+const path = require('node:path')
 const fixtures = require('haraka-test-fixtures')
 const ipaddr = require('ipaddr.js')
 
@@ -49,5 +49,58 @@ describe('greylist', () => {
     assert.ok(this.plugin.ip_in_list('123.210.123.234'))
     assert.ok(this.plugin.ip_in_list('2a02:8204:d600:8060:7920:4040:20ee:9680'))
     assert.ok(this.plugin.ip_in_list('2a02:8204:d600:8060:7920:eeee::ff00'))
+  })
+
+  describe('craft_hostid', () => {
+    it('should handle valid hostname strings without errors', () => {
+      this.connection.remote.host = 'mail.example.com'
+      this.connection.remote.ip = '1.2.3.4'
+      this.connection.results.add({ name: 'fcrdns' }, { pass: 'fcrdns' })
+      this.connection.results.add(
+        { name: 'fcrdns' },
+        {
+          ptr_names: ['mail.example.com'],
+        },
+      )
+
+      // This should not throw TypeError
+      const result = this.plugin.craft_hostid(this.connection)
+      assert.ok(result !== null)
+    })
+  })
+
+  describe('check_rdns_for_special_cases', () => {
+    it('should handle domain strings without errors', () => {
+      // This should not throw TypeError: domain.lastIndexOf is not a function
+      const result = this.plugin.check_rdns_for_special_cases(
+        'test.sgvps.net',
+        'test',
+      )
+      assert.ok(result)
+      assert.strictEqual(result.type, 'dynamic')
+    })
+
+    it('should return false for non-dynamic domains', () => {
+      const result = this.plugin.check_rdns_for_special_cases(
+        'mail.example.com',
+        'mail',
+      )
+      assert.strictEqual(result, false)
+    })
+  })
+
+  describe('domain_in_list', () => {
+    it('should handle string domains without errors', () => {
+      // This should not throw TypeError: domain.lastIndexOf is not a function
+      const result = this.plugin.domain_in_list('dyndom', 'test.sgvps.net')
+      assert.ok(result)
+    })
+
+    it('should match domain suffix correctly', () => {
+      assert.ok(this.plugin.domain_in_list('dyndom', 'sgvps.net'))
+      assert.ok(this.plugin.domain_in_list('dyndom', 'mail.sgvps.net'))
+      assert.ok(this.plugin.domain_in_list('dyndom', 'test.mail.sgvps.net'))
+      assert.ok(!this.plugin.domain_in_list('dyndom', 'example.com'))
+    })
   })
 })
