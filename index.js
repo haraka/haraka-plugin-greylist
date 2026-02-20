@@ -271,9 +271,7 @@ exports.check_and_update_white = async function (connection) {
 exports.invoke_outcome_cb = function (next, is_whitelisted) {
   if (is_whitelisted) return next()
 
-  const text = this.cfg.main.text || ''
-
-  next(DENYSOFT, DSN.sec_unauthorized(text, '451'))
+  next(DENYSOFT, DSN.sec_unauthorized(this.cfg.main.text || '', '451'))
 }
 
 // Should we skip greylisting invokation altogether?
