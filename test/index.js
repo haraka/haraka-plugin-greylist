@@ -2,7 +2,7 @@
 const assert = require('node:assert')
 const { beforeEach, describe, it } = require('node:test')
 
-const path = require('path')
+const path = require('node:path')
 const fixtures = require('haraka-test-fixtures')
 const ipaddr = require('ipaddr.js')
 
@@ -77,7 +77,7 @@ describe('greylist', () => {
         'test',
       )
       assert.ok(result)
-      assert.equal(result.type, 'dynamic')
+      assert.strictEqual(result.type, 'dynamic')
     })
 
     it('should return false for non-dynamic domains', () => {
@@ -85,7 +85,7 @@ describe('greylist', () => {
         'mail.example.com',
         'mail',
       )
-      assert.equal(result, false)
+      assert.strictEqual(result, false)
     })
   })
 
