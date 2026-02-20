@@ -10,6 +10,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - chore: refactor with es6 features
 - remove void returns
 - Fix TypeError by removing negation operator from remote.host usage
+- chore: add GHA permissions for NPM publish
+- dep(test-fixtures): allow newer versions
 
 ### [1.0.1] - 2025-01-30
 
