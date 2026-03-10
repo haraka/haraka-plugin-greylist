@@ -6,7 +6,7 @@ const path = require('node:path')
 const fixtures = require('haraka-test-fixtures')
 const ipaddr = require('ipaddr.js')
 
-const _set_up = (t, done) => {
+const _set_up = () => {
   this.plugin = new fixtures.plugin('greylist')
   this.plugin.config.root_path = path.resolve(__dirname, '../../config')
 
@@ -26,7 +26,6 @@ const _set_up = (t, done) => {
   this.connection = fixtures.connection.createConnection()
   this.connection.init_transaction()
 
-  done()
 }
 
 describe('greylist', () => {
