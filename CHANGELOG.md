@@ -4,6 +4,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Unreleased
 
+### [1.1.1] - 2026-03-31
+
+- deps: bump versions
+- ci: update configs
+- test: remove unecessary done callbacks (#5)
+
 ### [1.1.0] - 2026-02-20
 
 - deps: bump all versions to latest
@@ -25,3 +31,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - initial NPM release
 
 [1.0.1]: https://github.com/haraka/haraka-plugin-greylist/releases/tag/v1.0.1
+[1.1.1]: https://github.com/haraka/haraka-plugin-greylist/releases/tag/v1.1.1
+[1.0.0]: https://github.com/haraka/haraka-plugin-greylist/releases/tag/v1.0.0
+[1.1.0]: https://github.com/haraka/haraka-plugin-greylist/releases/tag/v1.1.0

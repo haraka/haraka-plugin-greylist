@@ -25,7 +25,6 @@ const _set_up = () => {
 
   this.connection = fixtures.connection.createConnection()
   this.connection.init_transaction()
-
 }
 
 describe('greylist', () => {
