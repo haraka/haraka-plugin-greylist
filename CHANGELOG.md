@@ -6,6 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### [1.1.1] - 2026-03-31
 
+- deps: bump versions
 - ci: update configs
 - test: remove unecessary done callbacks (#5)
 
