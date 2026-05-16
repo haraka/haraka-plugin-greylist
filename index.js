@@ -8,7 +8,7 @@ const util = require('util')
 const DSN = require('haraka-dsn')
 const tlds = require('haraka-tld')
 const net_utils = require('haraka-net-utils')
-const { Address } = require('@haraka/email-address')
+const { Address } = require('address-rfc2821')
 
 // External NPM modules
 const ipaddr = require('ipaddr.js')
@@ -114,7 +114,7 @@ exports.hook_mail = function (next, connection, params) {
   if (this.ip_in_list(connection.remote.ip)) {
     this.loginfo(connection, 'Connecting IP was whitelisted via config')
     connection.transaction.results.add(this, { skip: 'config-whitelist(ip)' })
-  } else if (this.addr_in_list('mail', mail_from.address.toLowerCase())) {
+  } else if (this.addr_in_list('mail', mail_from.address().toLowerCase())) {
     this.loginfo(connection, 'Envelope was whitelisted via config')
     connection.transaction.results.add(this, {
       skip: 'config-whitelist(envelope)',
@@ -147,7 +147,7 @@ exports.hook_rcpt_ok = async function (next, connection, rcpt) {
   const ctr = connection.transaction.results
 
   // check rcpt in whitelist (email & domain)
-  if (this.addr_in_list('rcpt', rcpt.address.toLowerCase())) {
+  if (this.addr_in_list('rcpt', rcpt.address().toLowerCase())) {
     this.loginfo(connection, 'RCPT was whitelisted via config')
     ctr.add(this, { skip: 'config-whitelist(recipient)' })
     return next()
@@ -166,8 +166,8 @@ exports.hook_rcpt_ok = async function (next, connection, rcpt) {
     try {
       const white_promo_rec = await this.process_tuple(
         connection,
-        connection.transaction.mail_from.address,
-        rcpt.address,
+        connection.transaction.mail_from.address(),
+        rcpt.address(),
       )
 
       if (!white_promo_rec) {
@@ -444,8 +444,8 @@ exports.craft_hostid = function (connection) {
 exports.retrieve_grey = async function (rcpt_key, sender_key) {
   const multi = this.db.multi()
 
-  multi.hgetall(rcpt_key)
-  multi.hgetall(sender_key)
+  multi.hGetAll(rcpt_key)
+  multi.hGetAll(sender_key)
 
   try {
     const result = await multi.exec()
@@ -473,11 +473,11 @@ exports.update_grey = async function (key, create) {
       tried: 1,
     }
 
-    multi.hmset(key, new_record)
+    multi.hSet(key, new_record)
     multi.expire(key, lifetime)
   } else {
-    multi.hincrby(key, 'tried', 1)
-    multi.hmset(key, {
+    multi.hIncrBy(key, 'tried', 1)
+    multi.hSet(key, {
       updated: ts_now,
     })
   }
@@ -511,7 +511,7 @@ exports.promote_to_white = async function (connection, grey_rec) {
   if (!white_key) return
 
   try {
-    await this.db.hmset(white_key, white_rec)
+    await this.db.hSet(white_key, white_rec)
     const result = await this.db.expire(white_key, white_ttl)
     return result
   } catch (err) {
@@ -527,8 +527,8 @@ exports.update_white_record = async function (key, record) {
   const ts_now = Math.round(Date.now() / 1000)
 
   // { first_connect: TS, whitelisted: TS, updated: TS, lifetime: TTL, tried: Integer, tried_when_greylisted: Integer }
-  multi.hincrby(key, 'tried', 1)
-  multi.hmset(key, {
+  multi.hIncrBy(key, 'tried', 1)
+  multi.hSet(key, {
     updated: ts_now,
   })
   multi.expire(key, record.lifetime)
@@ -557,14 +557,16 @@ exports.db_lookup = async function (key) {
   ]
 
   try {
-    const result = await this.db.hgetall(key)
+    const result = await this.db.hGetAll(key)
 
-    if (result && typeof result === 'object') {
-      // groom known-to-be numeric values
-      for (const kk of numVals) {
-        if (result[kk] !== undefined) {
-          result[kk] = Number(result[kk])
-        }
+    // node-redis v4 returns {} (not null) for a missing hash; the rest of
+    // the engine relies on a falsy "no record" value.
+    if (!result || Object.keys(result).length === 0) return null
+
+    // groom known-to-be numeric values
+    for (const kk of numVals) {
+      if (result[kk] !== undefined) {
+        result[kk] = Number(result[kk])
       }
     }
     return result

@@ -4,9 +4,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Unreleased
 
-### [1.2.0] - 2026-05-16
+### [1.1.2] - 2026-05-17
 
-- dep(address-rfc2822): upgraded to @haraka/email-address
+- fix: update redis calls for v4+ syntax
 - tests: add a bunch
 
 ### [1.1.1] - 2026-03-31
@@ -36,7 +36,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - initial NPM release
 
 [1.0.1]: https://github.com/haraka/haraka-plugin-greylist/releases/tag/v1.0.1
-[1.1.1]: https://github.com/haraka/haraka-plugin-greylist/releases/tag/v1.1.1
 [1.0.0]: https://github.com/haraka/haraka-plugin-greylist/releases/tag/v1.0.0
 [1.1.0]: https://github.com/haraka/haraka-plugin-greylist/releases/tag/v1.1.0
-[1.2.0]: https://github.com/haraka/haraka-plugin-greylist/releases/tag/v1.2.0
+[1.1.1]: https://github.com/haraka/haraka-plugin-greylist/releases/tag/v1.1.1
+[1.1.2]: https://github.com/haraka/haraka-plugin-greylist/releases/tag/v1.1.2
