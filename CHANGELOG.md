@@ -5,6 +5,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 ### Unreleased
 
 ### [1.2.0] - 2026-05-16
+
+- dep(address-rfc2822): upgraded to @haraka/email-address
 - tests: add a bunch
 
 ### [1.1.1] - 2026-03-31
