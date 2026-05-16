@@ -4,6 +4,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Unreleased
 
+### [1.2.0] - 2026-05-16
+- tests: add a bunch
+
 ### [1.1.1] - 2026-03-31
 
 - deps: bump versions
@@ -34,3 +37,4 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 [1.1.1]: https://github.com/haraka/haraka-plugin-greylist/releases/tag/v1.1.1
 [1.0.0]: https://github.com/haraka/haraka-plugin-greylist/releases/tag/v1.0.0
 [1.1.0]: https://github.com/haraka/haraka-plugin-greylist/releases/tag/v1.1.0
+[1.2.0]: https://github.com/haraka/haraka-plugin-greylist/releases/tag/v1.2.0
