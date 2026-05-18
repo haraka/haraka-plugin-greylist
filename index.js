@@ -444,8 +444,8 @@ exports.craft_hostid = function (connection) {
 exports.retrieve_grey = async function (rcpt_key, sender_key) {
   const multi = this.db.multi()
 
-  multi.hgetall(rcpt_key)
-  multi.hgetall(sender_key)
+  multi.hGetAll(rcpt_key)
+  multi.hGetAll(sender_key)
 
   try {
     const result = await multi.exec()
@@ -473,11 +473,11 @@ exports.update_grey = async function (key, create) {
       tried: 1,
     }
 
-    multi.hmset(key, new_record)
+    multi.hSet(key, new_record)
     multi.expire(key, lifetime)
   } else {
-    multi.hincrby(key, 'tried', 1)
-    multi.hmset(key, {
+    multi.hIncrBy(key, 'tried', 1)
+    multi.hSet(key, {
       updated: ts_now,
     })
   }
@@ -511,7 +511,7 @@ exports.promote_to_white = async function (connection, grey_rec) {
   if (!white_key) return
 
   try {
-    await this.db.hmset(white_key, white_rec)
+    await this.db.hSet(white_key, white_rec)
     const result = await this.db.expire(white_key, white_ttl)
     return result
   } catch (err) {
@@ -527,8 +527,8 @@ exports.update_white_record = async function (key, record) {
   const ts_now = Math.round(Date.now() / 1000)
 
   // { first_connect: TS, whitelisted: TS, updated: TS, lifetime: TTL, tried: Integer, tried_when_greylisted: Integer }
-  multi.hincrby(key, 'tried', 1)
-  multi.hmset(key, {
+  multi.hIncrBy(key, 'tried', 1)
+  multi.hSet(key, {
     updated: ts_now,
   })
   multi.expire(key, record.lifetime)
@@ -557,14 +557,16 @@ exports.db_lookup = async function (key) {
   ]
 
   try {
-    const result = await this.db.hgetall(key)
+    const result = await this.db.hGetAll(key)
 
-    if (result && typeof result === 'object') {
-      // groom known-to-be numeric values
-      for (const kk of numVals) {
-        if (result[kk] !== undefined) {
-          result[kk] = Number(result[kk])
-        }
+    // node-redis v4 returns {} (not null) for a missing hash; the rest of
+    // the engine relies on a falsy "no record" value.
+    if (!result || Object.keys(result).length === 0) return null
+
+    // groom known-to-be numeric values
+    for (const kk of numVals) {
+      if (result[kk] !== undefined) {
+        result[kk] = Number(result[kk])
       }
     }
     return result

@@ -1,6 +1,6 @@
 {
   "name": "haraka-plugin-greylist",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "description": "Haraka plugin that implements greylisting",
   "main": "index.js",
   "files": [
@@ -16,7 +16,8 @@
     "test": "node --test",
     "versions": "npx npm-dep-mgr check",
     "versions:fix": "npx npm-dep-mgr update",
-    "test:coverage": "npx c8 --reporter=text --reporter=text-summary npm test"
+    "test:coverage": "node --test --experimental-test-coverage --test-coverage-exclude=package.json --test-coverage-exclude=test/*.js",
+    "test:coverage:lcov": "mkdir -p coverage && node --test --experimental-test-coverage --test-reporter=lcov --test-reporter-destination=coverage/lcov.info test/*.js"
   },
   "repository": {
     "type": "git",
@@ -43,7 +44,7 @@
   },
   "devDependencies": {
     "@haraka/eslint-config": "^2.0.4",
-    "haraka-test-fixtures": "1.4.1"
+    "haraka-test-fixtures": "~1.4.2"
   },
   "prettier": {
     "singleQuote": true,
