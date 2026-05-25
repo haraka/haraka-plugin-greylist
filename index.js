@@ -47,7 +47,8 @@ exports.load_config_lists = function () {
   const load_list = (type, file_name) => {
     this.whitelist[type] = {}
 
-    const list = Object.keys(this.cfg[file_name])
+    // A partial/freshly-installed cfg may not have this section at all.
+    const list = Object.keys(this.cfg[file_name] || {})
 
     // toLower when loading spends a fraction of a second at load time
     // to save millions of seconds during run time.
@@ -62,7 +63,7 @@ exports.load_config_lists = function () {
   const load_ip_list = (type, file_name) => {
     this.whitelist[type] = []
 
-    const list = Object.keys(this.cfg[file_name])
+    const list = Object.keys(this.cfg[file_name] || {})
 
     for (const element of list) {
       try {
@@ -83,7 +84,7 @@ exports.load_config_lists = function () {
   }
 
   const load_config_list = (type, file_name) => {
-    this.list[type] = Object.keys(this.cfg[file_name])
+    this.list[type] = Object.keys(this.cfg[file_name] || {})
 
     this.logdebug(
       `list {${type}} loaded from ${file_name} with ${this.list[type].length} entries`,
@@ -341,6 +342,15 @@ exports.process_skip_rules = function (connection) {
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
+// Escape components before joining with ':' so that distinct tuples
+// cannot alias to the same Redis key. We escape '%' first (the escape
+// char) and then ':' (the delimiter); decoding is unambiguous.
+// Most addresses pass through unchanged — only ':' and '%' get rewritten,
+// so keys remain greppable in Redis for ops debugging.
+function encode_component(s) {
+  return String(s).replace(/%/g, '%25').replace(/:/g, '%3a')
+}
+
 // Build greylist DB key (originally, a "tuple") of supplied params.
 // When _to_ is false, we craft +sender+ key
 // When _to_ is String, we craft +rcpt+ key
@@ -348,16 +358,16 @@ exports.craft_grey_key = function (connection, from, to) {
   const crafted_host_id = this.craft_hostid(connection)
   if (!crafted_host_id) return null
 
-  let key = `grey:${crafted_host_id}:${from || '<>'}`
+  let key = `grey:${encode_component(crafted_host_id)}:${encode_component(from || '<>')}`
   if (to != undefined) {
-    key += `:${to || '<>'}`
+    key += `:${encode_component(to || '<>')}`
   }
   return key
 }
 
 // Build white DB key off supplied params.
 exports.craft_white_key = function (connection) {
-  return `white:${this.craft_hostid(connection)}`
+  return `white:${encode_component(this.craft_hostid(connection))}`
 }
 
 // Return so-called +hostid+.
