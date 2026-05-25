@@ -142,6 +142,32 @@ describe('greylist', () => {
       assert.equal(this.plugin.craft_grey_key(c, false), 'grey:example.com:<>')
       assert.equal(this.plugin.craft_white_key(c), 'white:example.com')
     })
+
+    it('craft_grey_key disambiguates tuples whose components contain the delimiter', () => {
+      // Two distinct (from, to) pairs that collide under naked ':' join:
+      //   ('a@x.com:b', 'c@y.com') → grey:HID:a@x.com:b:c@y.com
+      //   ('a@x.com',   'b:c@y.com') → grey:HID:a@x.com:b:c@y.com
+      // The ':b' bleeds across the from/to boundary.
+      const c = makeConn()
+      const k1 = this.plugin.craft_grey_key(c, 'a@x.com:b', 'c@y.com')
+      const k2 = this.plugin.craft_grey_key(c, 'a@x.com', 'b:c@y.com')
+      assert.notEqual(k1, k2, `keys must not collide; got '${k1}' === '${k2}'`)
+    })
+  })
+
+  describe('load_config_lists tolerates missing sections', () => {
+    it('does not throw when whitelist sections are absent from cfg', () => {
+      // Simulate a minimal/partial config (e.g. a fresh install or a
+      // partial reload) where the documented sections aren't all present.
+      this.plugin.cfg = {}
+      assert.doesNotThrow(() => this.plugin.load_config_lists())
+      // Each whitelist key should still be initialised to an empty container
+      // so downstream code can iterate safely.
+      assert.deepEqual(this.plugin.whitelist.mail, {})
+      assert.deepEqual(this.plugin.whitelist.rcpt, {})
+      assert.deepEqual(this.plugin.whitelist.ip, [])
+      assert.deepEqual(this.plugin.list.dyndom, [])
+    })
   })
 
   describe('skip logic', () => {
