@@ -4,6 +4,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Unreleased
 
+### [1.2.0] - 2026-05-20
+
+- dep(address-rfc2822): upgrade to @haraka/email-address
+- dep(all): bump versions to latest
+
 ### [1.1.2] - 2026-05-17
 
 - fix: update redis calls for v4+ syntax
@@ -40,3 +45,4 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 [1.1.0]: https://github.com/haraka/haraka-plugin-greylist/releases/tag/v1.1.0
 [1.1.1]: https://github.com/haraka/haraka-plugin-greylist/releases/tag/v1.1.1
 [1.1.2]: https://github.com/haraka/haraka-plugin-greylist/releases/tag/v1.1.2
+[1.2.0]: https://github.com/haraka/haraka-plugin-greylist/releases/tag/v1.2.0

@@ -8,7 +8,7 @@ const util = require('util')
 const DSN = require('haraka-dsn')
 const tlds = require('haraka-tld')
 const net_utils = require('haraka-net-utils')
-const { Address } = require('address-rfc2821')
+const { Address } = require('@haraka/email-address')
 
 // External NPM modules
 const ipaddr = require('ipaddr.js')
@@ -114,7 +114,7 @@ exports.hook_mail = function (next, connection, params) {
   if (this.ip_in_list(connection.remote.ip)) {
     this.loginfo(connection, 'Connecting IP was whitelisted via config')
     connection.transaction.results.add(this, { skip: 'config-whitelist(ip)' })
-  } else if (this.addr_in_list('mail', mail_from.address().toLowerCase())) {
+  } else if (this.addr_in_list('mail', mail_from.address.toLowerCase())) {
     this.loginfo(connection, 'Envelope was whitelisted via config')
     connection.transaction.results.add(this, {
       skip: 'config-whitelist(envelope)',
@@ -147,7 +147,7 @@ exports.hook_rcpt_ok = async function (next, connection, rcpt) {
   const ctr = connection.transaction.results
 
   // check rcpt in whitelist (email & domain)
-  if (this.addr_in_list('rcpt', rcpt.address().toLowerCase())) {
+  if (this.addr_in_list('rcpt', rcpt.address.toLowerCase())) {
     this.loginfo(connection, 'RCPT was whitelisted via config')
     ctr.add(this, { skip: 'config-whitelist(recipient)' })
     return next()
@@ -166,8 +166,8 @@ exports.hook_rcpt_ok = async function (next, connection, rcpt) {
     try {
       const white_promo_rec = await this.process_tuple(
         connection,
-        connection.transaction.mail_from.address(),
-        rcpt.address(),
+        connection.transaction.mail_from.address,
+        rcpt.address,
       )
 
       if (!white_promo_rec) {

@@ -206,20 +206,20 @@ describe('greylist', () => {
       assert.ok(c.transaction.results.has(this.plugin, 'skip', /ip/))
     })
 
-    it.skip('whitelists a configured envelope', async () => {
+    it('whitelists a configured envelope', async () => {
       const c = makeConn()
       await run(c, 'josef@example.com')
       assert.ok(c.transaction.results.has(this.plugin, 'skip', /envelope/))
     })
 
-    it.skip('records a requested skip when a skip rule matches', async () => {
+    it('records a requested skip when a skip rule matches', async () => {
       const c = makeConn()
       c.results.add({ name: 'dnswl.org' }, { pass: 'list.dnswl.org(1)' })
       await run(c, 'x@y.com')
       assert.ok(c.transaction.results.has(this.plugin, 'skip', /requested/))
     })
 
-    it.skip('passes through with no whitelist match', async () => {
+    it('passes through with no whitelist match', async () => {
       const c = makeConn()
       assert.deepEqual(await run(c, 'x@y.com'), [])
       assert.equal(c.transaction.results.has(this.plugin, 'skip', /./), false)
@@ -357,7 +357,7 @@ describe('greylist', () => {
     })
   })
 
-  describe.skip('hook_rcpt_ok', () => {
+  describe('hook_rcpt_ok', () => {
     const run = (conn, rcpt = 'rcpt@dest.example') =>
       new Promise((res) =>
         this.plugin.hook_rcpt_ok((...a) => res(a), conn, { address: rcpt }),
