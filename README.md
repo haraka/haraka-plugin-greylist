@@ -1,7 +1,6 @@
-[![CI Test Status][ci-img]][ci-url]
-[![Code Climate][clim-img]][clim-url]
-
 # haraka-plugin-greylist
+
+[![Test][ci-img]][ci-url] [![Cover][cov-img]][cov-url] [![Qlty][qlty-img]][qlty-url]
 
 Basic greylisting plugin that follows common practices found on internets.
 
@@ -95,5 +94,7 @@ List of known dynamic hosts, to use the IP instead of the domain:
 
 [ci-img]: https://github.com/haraka/haraka-plugin-greylist/actions/workflows/ci.yml/badge.svg
 [ci-url]: https://github.com/haraka/haraka-plugin-greylist/actions/workflows/ci.yml
-[clim-img]: https://codeclimate.com/github/haraka/haraka-plugin-greylist/badges/gpa.svg
-[clim-url]: https://codeclimate.com/github/haraka/haraka-plugin-greylist
+[cov-img]: https://codecov.io/github/haraka/haraka-plugin-greylist/coverage.svg
+[cov-url]: https://codecov.io/github/haraka/haraka-plugin-greylist
+[qlty-img]: https://qlty.sh/gh/haraka/projects/haraka-plugin-greylist/maintainability.svg
+[qlty-url]: https://qlty.sh/gh/haraka/projects/haraka-plugin-greylist

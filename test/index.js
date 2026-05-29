@@ -4,7 +4,7 @@ const assert = require('node:assert/strict')
 const path = require('node:path')
 const { after, beforeEach, describe, it } = require('node:test')
 
-const fixtures = require('haraka-test-fixtures')
+const { makeConnection, makePlugin } = require('haraka-test-fixtures')
 const constants = require('haraka-constants')
 const tlds = require('haraka-tld')
 const ipaddr = require('ipaddr.js')
@@ -20,15 +20,15 @@ const makeConn = ({
   relaying = false,
   is_private = false,
 } = {}) => {
-  const c = fixtures.connection.createConnection()
-  c.init_transaction()
-  c.relaying = relaying
-  c.remote.ip = ip
+  const c = makeConnection({
+    ip,
+    mailFrom: 'sender@remote.example',
+    relaying,
+  })
   c.remote.host = host
   c.remote.is_private = is_private
   c.results.add({ name: 'fcrdns' }, { pass: 'fcrdns' })
   c.results.add({ name: 'fcrdns' }, { ptr_names: [host] })
-  c.transaction.mail_from = { address: 'sender@remote.example' }
   return c
 }
 
@@ -37,7 +37,7 @@ let sharedDb // one real haraka-plugin-redis client, reused across tests
 const _set_up = async () => {
   await tlds.ready // haraka-tld loads its PSL asynchronously
 
-  this.plugin = new fixtures.plugin('greylist')
+  this.plugin = makePlugin('greylist', { register: false })
   this.plugin.config.root_path = path.resolve(__dirname, '../../config')
   this.plugin.register()
 
@@ -122,8 +122,7 @@ describe('greylist', () => {
     })
 
     it('craft_hostid falls back to IP without FcrDNS pass', () => {
-      const c = fixtures.connection.createConnection()
-      c.init_transaction()
+      const c = makeConnection({ withTxn: true })
       c.remote.ip = '9.9.9.9'
       c.remote.host = 'mail.example.com'
       assert.equal(this.plugin.craft_hostid(c), '9.9.9.9')
